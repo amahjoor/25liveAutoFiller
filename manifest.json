@@ -16,6 +16,9 @@
     "default_popup": "popup.html",
     "default_title": "Select AI Club Event"
   },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": ["https://25live.collegenet.com/pro/gmu*"],
