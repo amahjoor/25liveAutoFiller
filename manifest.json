@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "25Live Auto-Filler for AI Club",
+  "version": "2.4.0",
+  "description": "Automatically fills the 25Live event form for AI Club events at GMU",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://25live.collegenet.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://25live.collegenet.com/pro/gmu*"],
+      "js": ["config.js", "content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

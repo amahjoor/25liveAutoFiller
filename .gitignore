@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Personal configuration (contains private info)
+config.js
+
+# Packed extension
+*.crx
+*.pem
+*.zip

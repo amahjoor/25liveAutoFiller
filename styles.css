@@ -1,0 +1,30 @@
+/* Auto-fill notification styles */
+.autofill-notification {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: #005239;
+    color: white;
+    padding: 15px 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 999999;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    transform: translateX(400px);
+    transition: all 0.3s ease;
+}
+
+.autofill-notification.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.autofill-notification::before {
+    content: '✓ ';
+    font-weight: bold;
+    margin-right: 8px;
+}
+
