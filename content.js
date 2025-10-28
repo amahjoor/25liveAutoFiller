@@ -1,16 +1,19 @@
-// 25Live Auto-Filler v2.3
+// 25Live Auto-Filler
 (function() {
     'use strict';
     
     const CONFIG = window.AUTOFILL_CONFIG || {};
     
-    const FORM_DATA = {
+    let FORM_DATA = {
         eventName: CONFIG.eventName,
         eventTitle: CONFIG.eventTitle,
         eventType: CONFIG.eventType,
         primaryOrganization: CONFIG.primaryOrganization,
         headCount: CONFIG.expectedHeadCount,
         eventDescription: CONFIG.eventDescription,
+        eventDate: null,
+        startTime: null,
+        endTime: null,
         customAttributes: {
             'Applying for SFB money?': CONFIG.applyingForSFBMoney,
             'Are funds being collected?': CONFIG.fundsBeingCollected,
@@ -255,14 +258,330 @@
         }
         await sleep(500);
 
-        try {
-            const iframe = document.querySelector('iframe.tox-edit-area__iframe');
-            if (iframe && iframe.contentDocument && FORM_DATA.eventDescription) {
-                iframe.contentDocument.body.innerHTML = FORM_DATA.eventDescription;
-                filled++;
+        // Fill Event Description (before date/time to match form order)
+        console.log('🔍 Checking event description:', FORM_DATA.eventDescription);
+        console.log('🔍 Description value:', FORM_DATA.eventDescription ? `"${FORM_DATA.eventDescription}"` : 'EMPTY/NULL');
+        
+        if (FORM_DATA.eventDescription) {
+            console.log('📝 Attempting to fill Event Description...');
+            const descriptionLabel = Array.from(document.querySelectorAll('label'))
+                .find(l => l.textContent.includes('Event Description'));
+            
+            if (descriptionLabel) {
+                scrollToElement(descriptionLabel);
+                console.log('✅ Found description label, scrolled to it');
             }
-        } catch (e) {}
-        await sleep(300);
+            
+            await sleep(1000);
+            
+            let descFilled = false;
+            for (let attempt = 0; attempt < 15; attempt++) {
+                console.log(`🔄 Description fill attempt ${attempt + 1}/15...`);
+                
+                try {
+                    const iframe = document.querySelector('iframe.tox-edit-area__iframe');
+                    console.log('  iframe found:', !!iframe);
+                    
+                    if (iframe && iframe.contentDocument) {
+                        console.log('  iframe.contentDocument accessible:', !!iframe.contentDocument.body);
+                        
+                        if (iframe.contentDocument.body) {
+                            const body = iframe.contentDocument.body;
+                            
+                            if (window.tinymce && window.tinymce.activeEditor) {
+                                console.log('  ✅ Using TinyMCE API');
+                                window.tinymce.activeEditor.setContent(`<p>${FORM_DATA.eventDescription}</p>`);
+                            } else {
+                                console.log('  ✅ Using direct iframe manipulation');
+                                body.innerHTML = `<p>${FORM_DATA.eventDescription}</p>`;
+                            }
+                            
+                            body.dispatchEvent(new Event('input', { bubbles: true }));
+                            body.dispatchEvent(new Event('change', { bubbles: true }));
+                            
+                            filled++;
+                            descFilled = true;
+                            console.log('✅ Description filled successfully!');
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    console.log('  ⚠️ Error on attempt', attempt + 1, ':', e.message);
+                }
+                
+                await sleep(400);
+            }
+            
+            if (!descFilled) {
+                console.log('❌ Failed to fill description after all attempts');
+            }
+        } else {
+            console.log('⚠️ Skipping description - no content to fill');
+        }
+        await sleep(500);
+
+        // Fill Date and Time if available
+        if (FORM_DATA.eventDate && FORM_DATA.startTime && FORM_DATA.endTime) {
+            console.log('📅 Filling date and time...');
+            const dateTimeLabel = Array.from(document.querySelectorAll('label'))
+                .find(l => l.textContent.includes('Event Date and Time'));
+            if (dateTimeLabel) scrollToElement(dateTimeLabel);
+            
+            await sleep(800);
+            
+            const targetDate = FORM_DATA.eventDate;
+            const targetMonth = targetDate.getMonth(); // 0-11
+            const targetYear = targetDate.getFullYear();
+            const targetDay = targetDate.getDate();
+            
+            console.log(`🗓️ Target: ${targetMonth + 1}/${targetDay}/${targetYear}`);
+            
+            // First, click the date input field to open the popup calendar
+            const dateInput = document.querySelector('input.b-datepicker-input, input.datepickerInput, input.s25-datepicker-input');
+            if (dateInput) {
+                console.log('📅 Clicking date input to open popup calendar...');
+                dateInput.click();
+                dateInput.focus();
+                await sleep(600);
+                
+                // Now work with the POPUP calendar (it's in a qtip div)
+                const popupCalendar = document.querySelector('#qtip-2, .qtip.s25-datepicker-qtip');
+                if (popupCalendar) {
+                    console.log('📅 Found popup calendar');
+                    
+                    // Get current month displayed in POPUP calendar
+                    const calendarTitle = popupCalendar.querySelector('.b-datepicker .h-col-title');
+                    if (calendarTitle) {
+                        const titleText = calendarTitle.textContent.trim();
+                        console.log('📆 Popup calendar showing:', titleText);
+                        
+                        // Parse current month and year
+                        const [currentMonthName, currentYearStr] = titleText.split(' ');
+                        const currentYear = parseInt(currentYearStr);
+                        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                          'July', 'August', 'September', 'October', 'November', 'December'];
+                        const currentMonth = monthNames.indexOf(currentMonthName);
+                        
+                        console.log(`📆 Popup at: ${currentMonth + 1}/${currentYear}`);
+                        
+                        // Calculate how many months to navigate
+                        const monthsDiff = (targetYear - currentYear) * 12 + (targetMonth - currentMonth);
+                        console.log(`➡️ Need to navigate ${monthsDiff} months`);
+                        
+                        // Navigate to correct month in popup
+                        if (monthsDiff !== 0) {
+                            const navigationClass = monthsDiff > 0 
+                                ? '.b-datepicker-button-next' 
+                                : '.b-datepicker-button-prev';
+                            const clicksNeeded = Math.abs(monthsDiff);
+                            
+                            console.log(`🔄 Clicking ${navigationClass} ${clicksNeeded} times in popup...`);
+                            
+                            for (let i = 0; i < clicksNeeded; i++) {
+                                const navButton = popupCalendar.querySelector(navigationClass);
+                                if (navButton) {
+                                    const parentDiv = navButton.closest('div[data-ng-click*="move"]');
+                                    if (parentDiv) {
+                                        parentDiv.click();
+                                        await sleep(400);
+                                    }
+                                }
+                            }
+                            
+                            await sleep(600);
+                            console.log('✅ Popup navigation complete');
+                        }
+                    }
+                    
+                    // Click the date in the POPUP calendar (buttons WITHOUT clickToPick)
+                    await sleep(400);
+                    const popupDateButtons = popupCalendar.querySelectorAll('button[data-ng-if*="!datepickerOptions.clickToPick"]');
+                    
+                    console.log(`🔍 Found ${popupDateButtons.length} date buttons in popup`);
+                    
+                    // Find the button with matching day that's not in secondary month
+                    const targetButton = Array.from(popupDateButtons).find(btn => {
+                        const isRightDay = btn.textContent.trim() === String(targetDay).padStart(2, '0') || 
+                                           btn.textContent.trim() === String(targetDay);
+                        const isNotSecondary = !btn.classList.contains('text-muted');
+                        return isRightDay && isNotSecondary;
+                    });
+                    
+                    if (targetButton) {
+                        console.log('🎯 Clicking date button:', targetDay);
+                        targetButton.click();
+                        console.log('✅ Clicked date in popup:', targetDay);
+                        await sleep(800);
+                    } else {
+                        console.log('❌ Could not find date button for day:', targetDay);
+                    }
+                } else {
+                    console.log('❌ Popup calendar not found');
+                }
+            } else {
+                console.log('❌ Date input field not found');
+            }
+            
+            // Fill start time
+            const startTimeInput = document.querySelector('input[aria-label="Start Time"]');
+            if (startTimeInput) {
+                startTimeInput.value = FORM_DATA.startTime;
+                triggerChange(startTimeInput);
+                console.log('✅ Set start time:', FORM_DATA.startTime);
+                await sleep(500);
+            }
+            
+            // Fill end time
+            const endTimeInput = document.querySelector('input[aria-label="End Time"]');
+            if (endTimeInput) {
+                endTimeInput.value = FORM_DATA.endTime;
+                triggerChange(endTimeInput);
+                console.log('✅ Set end time:', FORM_DATA.endTime);
+                await sleep(500);
+            }
+            
+            filled += 3;
+        }
+        await sleep(500);
+
+        // Fill Location Search
+        console.log('📍 Starting location search...');
+        const locationsLabel = Array.from(document.querySelectorAll('label'))
+            .find(l => l.textContent.includes('Event Locations'));
+        if (locationsLabel) {
+            scrollToElement(locationsLabel);
+            await sleep(800);
+        }
+
+        // Step 1: Select "All Spaces - Fairfax" from saved searches
+        console.log('📍 Step 1: Opening saved searches dropdown...');
+        const locationSearchDropdown = document.querySelector('query-chooser[data-type-id="4"] .select2-choice');
+        if (locationSearchDropdown) {
+            console.log('  Found dropdown, clicking...');
+            locationSearchDropdown.click();
+            await sleep(1200);
+            
+            // Find and click "All Spaces - Fairfax" option from the opened dropdown
+            console.log('  Looking for "All Spaces - Fairfax" in dropdown...');
+            
+            // Wait for dropdown to fully open and populate
+            await sleep(400);
+            
+            const dropdownOptions = Array.from(document.querySelectorAll('.ui-select-dropdown.select2-drop-active div.ngDropdownItem.ngParentSelect'));
+            console.log(`  Found ${dropdownOptions.length} dropdown options`);
+            
+            const allSpacesOption = dropdownOptions.find(el => {
+                const spanText = el.querySelector('span')?.textContent.trim() || '';
+                console.log(`    Checking option: "${spanText}"`);
+                return spanText === 'All Spaces - Fairfax';
+            });
+            
+            if (allSpacesOption) {
+                console.log('  ✅ Found "All Spaces - Fairfax", clicking...');
+                allSpacesOption.click();
+                console.log('  Waiting for saved search to auto-execute...');
+                await sleep(2500); // Saved searches auto-execute, wait for results
+                console.log('✅ Selected "All Spaces - Fairfax" - should have auto-searched');
+            } else {
+                console.log('  ❌ Could not find "All Spaces - Fairfax" in dropdown');
+                // Close dropdown if we couldn't find it
+                document.body.click();
+                await sleep(500);
+            }
+        } else {
+            console.log('  ❌ Could not find saved searches dropdown');
+        }
+
+        // Step 2: Wait for search results (saved searches auto-execute, no need to click Search)
+        console.log('📍 Step 2: Waiting for search results to load...');
+        await sleep(2000);
+
+        // Step 3: Find and click Request button for "CLASSROOM (FAIRFAX): TECHNOLOGY"
+        console.log('📍 Step 3: Looking for CLASSROOM (FAIRFAX): TECHNOLOGY...');
+        
+        let techClassroomButton = null;
+        // Try multiple times to find the button as results may still be loading
+        for (let attempt = 0; attempt < 5; attempt++) {
+            console.log(`  Attempt ${attempt + 1}/5: Searching for button...`);
+            
+            // Debug: Check if results table exists
+            const resultsTable = document.querySelector('s25-location-search-list table.b-listview');
+            console.log(`    Results table exists: ${!!resultsTable}`);
+            
+            if (resultsTable) {
+                const allRows = resultsTable.querySelectorAll('tbody tr.ngListRow');
+                console.log(`    Found ${allRows.length} result rows`);
+                
+                // Look through rows to find CLASSROOM (FAIRFAX): TECHNOLOGY
+                allRows.forEach((row, idx) => {
+                    const nameCell = row.querySelector('[data-label="Name"] .s25-item-name');
+                    if (nameCell) {
+                        console.log(`      Row ${idx + 1}: ${nameCell.textContent.trim()}`);
+                    }
+                });
+            }
+            
+            const requestButtons = Array.from(document.querySelectorAll('button.aw-button--primary'))
+                .filter(btn => {
+                    const isRequest = btn.textContent.trim() === 'Request';
+                    const ariaLabel = btn.getAttribute('aria-label') || '';
+                    const hasTech = ariaLabel.includes('CLASSROOM (FAIRFAX): TECHNOLOGY');
+                    if (isRequest) {
+                        console.log(`      Found Request button with aria-label: "${ariaLabel}"`);
+                    }
+                    return isRequest && hasTech;
+                });
+            
+            if (requestButtons.length > 0) {
+                techClassroomButton = requestButtons[0];
+                console.log(`  ✅ Found button on attempt ${attempt + 1}`);
+                break;
+            }
+            
+            console.log(`    Button not found, waiting...`);
+            await sleep(1000);
+        }
+        
+        if (techClassroomButton) {
+            scrollToElement(techClassroomButton);
+            await sleep(500);
+            techClassroomButton.click();
+            console.log('✅ Clicked Request for CLASSROOM (FAIRFAX): TECHNOLOGY');
+            await sleep(1500);
+            filled++;
+        } else {
+            console.log('❌ Could not find CLASSROOM (FAIRFAX): TECHNOLOGY after 5 attempts');
+        }
+
+        // Step 4: Switch to "Your Starred Locations"
+        console.log('📍 Step 4: Switching to "Your Starred Locations"...');
+        const locationDropdownAgain = document.querySelector('query-chooser[data-type-id="4"] .select2-choice');
+        if (locationDropdownAgain) {
+            console.log('  Opening dropdown again...');
+            locationDropdownAgain.click();
+            await sleep(1200);
+            
+            // Find and click "Your Starred Locations" option
+            console.log('  Looking for "Your Starred Locations"...');
+            await sleep(400);
+            
+            const starredOptions = Array.from(document.querySelectorAll('.ui-select-dropdown.select2-drop-active div.ngDropdownItem.ngParentSelect'));
+            const starredOption = starredOptions.find(el => {
+                const spanText = el.querySelector('span')?.textContent.trim() || '';
+                return spanText === 'Your Starred Locations';
+            });
+            
+            if (starredOption) {
+                console.log('  ✅ Found "Your Starred Locations", clicking...');
+                starredOption.click();
+                await sleep(1000);
+                console.log('✅ Selected "Your Starred Locations"');
+            } else {
+                console.log('  ❌ Could not find "Your Starred Locations"');
+            }
+        }
+
+        await sleep(500);
 
         const attributesLabel = Array.from(document.querySelectorAll('label'))
             .find(l => l.textContent.includes('Event Attributes'));
@@ -331,13 +650,18 @@
                     lastUrl = window.location.href;
                     if (window.location.hash.includes('#!/home/event/form')) {
                         clearInterval(checkUrl);
-                        setTimeout(() => startFilling(), 2000);
+                        setTimeout(() => openPopup(), 1000);
                     }
                 }
             }, 500);
             return;
         }
-        startFilling();
+        
+        setTimeout(() => openPopup(), 1000);
+    }
+    
+    function openPopup() {
+        chrome.runtime.sendMessage({ action: 'openPopup' });
     }
     
     function showBanner() {
@@ -360,9 +684,33 @@
         await fillForm();
     }
 
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'fillForm' && request.event) {
+            console.log('📨 Received event data from popup:', request.event);
+            
+            FORM_DATA.eventName = 'AI Club Event';
+            FORM_DATA.eventTitle = request.event.eventName;
+            FORM_DATA.customAttributes['Who is speaking/performing?'] = request.event.speakerPerformer;
+            FORM_DATA.eventDescription = request.event.eventDescription || '';
+            
+            // Convert date string back to Date object
+            FORM_DATA.eventDate = request.event.eventDate ? new Date(request.event.eventDate) : null;
+            FORM_DATA.startTime = request.event.startTime;
+            FORM_DATA.endTime = request.event.endTime;
+            
+            console.log('📅 Date:', FORM_DATA.eventDate);
+            console.log('🕐 Start:', FORM_DATA.startTime);
+            console.log('🕐 End:', FORM_DATA.endTime);
+            
+            startFilling();
+            sendResponse({ success: true });
+        }
+    });
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
         init();
     }
 })();
+

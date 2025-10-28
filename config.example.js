@@ -2,6 +2,11 @@
 // COPY THIS FILE TO config.js AND EDIT WITH YOUR VALUES
 
 const CONFIG = {
+    // Google Sheet Integration
+    // Paste your Google Sheets link here (must be publicly viewable)
+    // Example: 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit?gid=0#gid=0'
+    googleSheetUrl: 'YOUR_GOOGLE_SHEET_URL_HERE',
+    
     // Event Information
     eventName: 'Your Event Name',
     eventTitle: 'Your Event Title',
