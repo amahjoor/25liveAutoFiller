@@ -244,7 +244,8 @@ async function selectEvent(event) {
         eventDescription: event.description,
         eventDate: dateTimeInfo.date,
         startTime: dateTimeInfo.startTime,
-        endTime: dateTimeInfo.endTime
+        endTime: dateTimeInfo.endTime,
+        location: event.location
     };
     
     console.log('📤 Sending to content script:', eventData);
@@ -253,7 +254,18 @@ async function selectEvent(event) {
     
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    if (tab.url && tab.url.includes('25live.collegenet.com')) {
+    // Check which platform we're on
+    if (tab.url && tab.url.includes('mason360.gmu.edu/event_form2')) {
+        console.log('📍 On Mason360 - sending message');
+        chrome.tabs.sendMessage(tab.id, { action: 'fillForm', event: eventData }, (response) => {
+            if (chrome.runtime.lastError) {
+                alert('Please refresh the Mason360 page and try again.');
+            } else {
+                window.close();
+            }
+        });
+    } else if (tab.url && tab.url.includes('25live.collegenet.com')) {
+        console.log('📍 On 25Live - sending message');
         chrome.tabs.sendMessage(tab.id, { action: 'fillForm', event: eventData }, (response) => {
             if (chrome.runtime.lastError) {
                 alert('Please refresh the 25Live page and try again.');
@@ -262,13 +274,26 @@ async function selectEvent(event) {
             }
         });
     } else {
-        const formUrl = 'https://25live.collegenet.com/pro/gmu#!/home/event/form';
-        chrome.tabs.create({ url: formUrl }, (newTab) => {
-            setTimeout(() => {
-                chrome.tabs.sendMessage(newTab.id, { action: 'fillForm', event: eventData });
-                window.close();
-            }, 3000);
-        });
+        // Not on either platform - ask user which one to use
+        const useMason360 = confirm('Open form in:\n\nOK = Mason360\nCancel = 25Live');
+        
+        if (useMason360) {
+            const formUrl = 'https://mason360.gmu.edu/event_form2';
+            chrome.tabs.create({ url: formUrl }, (newTab) => {
+                setTimeout(() => {
+                    chrome.tabs.sendMessage(newTab.id, { action: 'fillForm', event: eventData });
+                    window.close();
+                }, 3000);
+            });
+        } else {
+            const formUrl = 'https://25live.collegenet.com/pro/gmu#!/home/event/form';
+            chrome.tabs.create({ url: formUrl }, (newTab) => {
+                setTimeout(() => {
+                    chrome.tabs.sendMessage(newTab.id, { action: 'fillForm', event: eventData });
+                    window.close();
+                }, 3000);
+            });
+        }
     }
 }
 

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "25Live Auto-Filler for AI Club",
-  "version": "1.0.0",
-  "description": "Automatically fills the 25Live event form for AI Club events at GMU",
+  "name": "25Live & Mason360 Auto-Filler for AI Club",
+  "version": "2.0.0",
+  "description": "Automatically fills 25Live and Mason360 event forms for AI Club events at GMU",
   "permissions": [
     "activeTab",
     "scripting",
@@ -10,6 +10,7 @@
   ],
   "host_permissions": [
     "https://25live.collegenet.com/*",
+    "https://mason360.gmu.edu/*",
     "https://docs.google.com/*"
   ],
   "action": {
@@ -21,8 +22,11 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://25live.collegenet.com/pro/gmu*"],
-      "js": ["config.js", "content.js"],
+      "matches": [
+        "https://25live.collegenet.com/pro/gmu*",
+        "https://mason360.gmu.edu/event_form2*"
+      ],
+      "js": ["config.js", "mason360.js", "25live.js", "content.js"],
       "css": ["styles.css"],
       "run_at": "document_idle"
     }
